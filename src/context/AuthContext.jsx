@@ -8,7 +8,9 @@ export function AuthProvider({ children }) {
   const [user,           setUser]           = useState(null)
   const [loading,        setLoading]        = useState(true)   // auth session check
   const [profile,        setProfile]        = useState(null)   // profiles row
-  const [profileLoading, setProfileLoading] = useState(false)  // per-user profile fetch
+  // Arranca en true: hay que esperar tanto el auth como el profile fetch
+  // antes de que los guards puedan decidir a dónde redirigir.
+  const [profileLoading, setProfileLoading] = useState(true)
 
   // ── Fetch profile whenever user changes ────────────────────────
   const loadProfile = useCallback(async (u) => {
