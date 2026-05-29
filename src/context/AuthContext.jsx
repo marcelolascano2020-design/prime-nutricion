@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchProfile, upsertProfile } from '../lib/db'
+import { fetchProfile, upsertProfile, updateProfileSettings } from '../lib/db'
 
 const AuthContext = createContext(null)
 
@@ -73,12 +73,21 @@ export function AuthProvider({ children }) {
   }
 
   // ── Profile: save (onboarding finish) ─────────────────────────
-  /** Guarda el perfil en Supabase y actualiza el contexto */
+  /** Guarda el perfil desde el onboarding (usa el mapeo de campos del wizard) */
   const saveProfile = async (formData) => {
     console.log('[AuthContext] saveProfile — user:', user?.id ?? 'null')
     if (!user) throw new Error('No hay usuario autenticado')
     const saved = await upsertProfile(user.id, formData)
     console.log('[AuthContext] upsertProfile result:', saved)
+    setProfile(saved)
+    return saved
+  }
+
+  // ── Profile: update desde Perfil/Configuración ─────────────────
+  /** Actualiza campos del perfil con nombres de columna directos */
+  const updateSettings = async (settings) => {
+    if (!user) throw new Error('No hay usuario autenticado')
+    const saved = await updateProfileSettings(user.id, settings)
     setProfile(saved)
     return saved
   }
@@ -94,6 +103,7 @@ export function AuthProvider({ children }) {
       logout,
       resetPassword,
       saveProfile,
+      updateSettings,
     }}>
       {children}
     </AuthContext.Provider>

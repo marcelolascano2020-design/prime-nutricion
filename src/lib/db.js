@@ -92,6 +92,22 @@ export async function upsertProfile(userId, form) {
   return data
 }
 
+/**
+ * Actualiza campos del perfil desde la página Perfil/Configuración.
+ * Recibe los campos con sus nombres de columna reales (no el mapeo del onboarding).
+ * Usa UPDATE (no UPSERT) porque el perfil siempre existe en este punto.
+ */
+export async function updateProfileSettings(userId, settings) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(settings)
+    .eq('id', userId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
 // ── MEALS ────────────────────────────────────────────────────────────────────
 
 /** Comidas del día actual del usuario, ordenadas cronológicamente */
