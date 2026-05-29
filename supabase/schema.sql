@@ -44,6 +44,8 @@ CREATE TABLE public.profiles (
   -- Configuración de la app
   agua_meta_litros      NUMERIC(4,2)    DEFAULT 2.0,
   calorias_meta         INTEGER         DEFAULT 2200,
+  paleta                TEXT            DEFAULT 'obsidian'
+                                          CHECK (paleta IN ('obsidian','earth','cool','desert')),
   onboarding_completado BOOLEAN         DEFAULT FALSE,
 
   created_at            TIMESTAMPTZ     DEFAULT NOW(),

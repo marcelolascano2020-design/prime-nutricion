@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { THEMES, FAMILY } from './theme'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -84,8 +84,33 @@ function RedirectIfAuthed({ children }) {
 // ── App inner (necesita AuthProvider en el árbol) ─────────────────────────────
 
 function AppInner() {
+  const { profile, updateSettings } = useAuth()
   const [themeKey, setThemeKey] = useState('obsidian')
-  const theme = THEMES[themeKey]
+  const theme = THEMES[themeKey] ?? THEMES.obsidian
+
+  // ── Inicializar paleta desde el perfil guardado ──────────────
+  // Sólo escucha profile.paleta; cuando el usuario cambia la paleta
+  // nosotros mismos actualizamos profile.paleta → este effect se
+  // vuelve a disparar pero es un no-op (key ya coincide).
+  useEffect(() => {
+    const saved = profile?.paleta
+    if (saved && THEMES[saved] && saved !== themeKey) {
+      setThemeKey(saved)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.paleta])
+
+  // ── Cambio de paleta: aplica inmediatamente + persiste en DB ──
+  function handleThemeChange(key) {
+    if (!THEMES[key] || key === themeKey) return
+    setThemeKey(key)
+    // Guardado silencioso; si falla sólo aparece en consola
+    if (updateSettings) {
+      updateSettings({ paleta: key }).catch(e =>
+        console.error('[AppInner] Error guardando paleta:', e)
+      )
+    }
+  }
 
   const cssVars = {
     '--bg':               theme.page,
@@ -106,7 +131,7 @@ function AppInner() {
         <Sidebar
           theme={theme}
           themeKey={themeKey}
-          setThemeKey={setThemeKey}
+          setThemeKey={handleThemeChange}
           drawerOpen={drawerOpen}
           onCloseDrawer={() => setDrawerOpen(false)}
         />
@@ -199,7 +224,7 @@ function AppInner() {
         } />
         <Route path="/perfil" element={
           <RequireAuth><RequireProfile>
-            <AppShell><Perfil theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} /></AppShell>
+            <AppShell><Perfil theme={theme} themeKey={themeKey} setThemeKey={handleThemeChange} /></AppShell>
           </RequireProfile></RequireAuth>
         } />
 
