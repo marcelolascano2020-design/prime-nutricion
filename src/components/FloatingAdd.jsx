@@ -23,8 +23,13 @@ export default function FloatingAdd({ onClick, theme }) {
         fontFamily: FAMILY.body,
       }}
     >
-      <span style={{ fontFamily: FAMILY.display, fontSize: 26, fontWeight: 400, lineHeight: 0.8 }}>+</span>
-      <span style={{ fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase' }}>
+      <span style={{
+        fontFamily: FAMILY.display, fontSize: 26, fontWeight: 400, lineHeight: 0.8,
+      }}>+</span>
+      {/* fab-label: hidden on mobile via CSS */}
+      <span className="fab-label" style={{
+        fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase',
+      }}>
         Registrar
       </span>
     </button>

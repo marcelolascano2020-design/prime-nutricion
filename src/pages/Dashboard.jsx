@@ -138,16 +138,19 @@ export default function Dashboard({ theme }) {
   // ── Render ─────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', fontFamily: FAMILY.body }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 0' }}>
+      <div className="dashboard-outer" style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 32px 0' }}>
 
         {/* ── Header personalizado ─────────────────────────────── */}
         <header style={{ padding: '16px 0 28px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <div style={{
-                fontFamily: FAMILY.display, fontWeight: 400,
-                fontSize: 48, lineHeight: 0.92, letterSpacing: '-0.02em', fontStyle: 'italic',
-              }}>
+              <div
+                className="dashboard-name"
+                style={{
+                  fontFamily: FAMILY.display, fontWeight: 400,
+                  fontSize: 48, lineHeight: 0.92, letterSpacing: '-0.02em', fontStyle: 'italic',
+                }}
+              >
                 {profile?.nombre ? `Hola, ${profile.nombre.split(' ')[0]}` : 'Prime'}
               </div>
               <div style={{
@@ -232,25 +235,27 @@ export default function Dashboard({ theme }) {
         </header>
 
         {/* ── Bento grid ───────────────────────────────────────── */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
-          gap: 16, paddingBottom: 180,
-          opacity: dataLoading ? 0.5 : 1,
-          transition: 'opacity .3s ease',
-        }}>
-
+        <div
+          className="dashboard-grid"
+          style={{
+            display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
+            gap: 16, paddingBottom: 180,
+            opacity: dataLoading ? 0.5 : 1,
+            transition: 'opacity .3s ease',
+          }}
+        >
           {/* Fila 1: Hero · Peso · Foto */}
-          <div style={{ gridColumn: 'span 5', minHeight: 460 }}>
+          <div className="grid-item grid-item--hero" style={{ gridColumn: 'span 5', minHeight: 460 }}>
             <HeroCard palette={theme.tiles.hero} consumed={consumed} burned={burned} goal={CALORIE_GOAL} />
           </div>
-          <div style={{ gridColumn: 'span 4', minHeight: 460 }}>
+          <div className="grid-item grid-item--weight" style={{ gridColumn: 'span 4', minHeight: 460 }}>
             <WeightCard
               palette={theme.tiles.weight}
               history={displayHistory} start={WEIGHT_START} goal={WEIGHT_GOAL}
               onLog={() => openDrawer('weight')}
             />
           </div>
-          <div style={{ gridColumn: 'span 3', minHeight: 460 }}>
+          <div className="grid-item grid-item--photo" style={{ gridColumn: 'span 3', minHeight: 460 }}>
             <PhotoCard
               palette={theme.tiles.photo}
               latestPhoto={latestPhoto?.photo} latestName={latestPhoto?.name}
@@ -259,10 +264,10 @@ export default function Dashboard({ theme }) {
           </div>
 
           {/* Fila 2: Macros · Ejercicio */}
-          <div style={{ gridColumn: 'span 7' }}>
+          <div className="grid-item grid-item--macros" style={{ gridColumn: 'span 7' }}>
             <MacrosCard palette={theme.tiles.macros} totals={totals} goals={macroGoals} />
           </div>
-          <div style={{ gridColumn: 'span 5', minHeight: 320 }}>
+          <div className="grid-item grid-item--exercise" style={{ gridColumn: 'span 5', minHeight: 320 }}>
             <ExerciseCard
               palette={theme.tiles.exercise} items={exercises}
               onAdd={() => openDrawer('exercise')}
@@ -271,14 +276,14 @@ export default function Dashboard({ theme }) {
           </div>
 
           {/* Fila 3: Agua · Comidas */}
-          <div style={{ gridColumn: 'span 4', minHeight: 320 }}>
+          <div className="grid-item grid-item--water" style={{ gridColumn: 'span 4', minHeight: 320 }}>
             <WaterCard
               palette={theme.tiles.water}
               liters={waterLiters} goal={WATER_GOAL}
               onAdd={handleAddWater}
             />
           </div>
-          <div style={{ gridColumn: 'span 8' }}>
+          <div className="grid-item grid-item--log" style={{ gridColumn: 'span 8' }}>
             <MealLogCard
               palette={theme.tiles.log} items={meals}
               onAdd={() => openDrawer('food')}
@@ -287,7 +292,7 @@ export default function Dashboard({ theme }) {
           </div>
 
           {/* Fila 4: Semana */}
-          <div style={{ gridColumn: 'span 12' }}>
+          <div className="grid-item grid-item--week" style={{ gridColumn: 'span 12' }}>
             <WeekCard palette={theme.tiles.week} data={weekData} goal={CALORIE_GOAL} />
           </div>
         </div>

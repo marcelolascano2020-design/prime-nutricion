@@ -99,12 +99,50 @@ function AppInner() {
     '--surface-week':     theme.tiles.week.bg,
   }
 
-  const AppShell = ({ children }) => (
-    <div className="app-layout">
-      <Sidebar theme={theme} themeKey={themeKey} setThemeKey={setThemeKey} />
-      <main className="app-main">{children}</main>
-    </div>
-  )
+  function AppShell({ children }) {
+    const [drawerOpen, setDrawerOpen] = useState(false)
+    return (
+      <div className="app-layout">
+        <Sidebar
+          theme={theme}
+          themeKey={themeKey}
+          setThemeKey={setThemeKey}
+          drawerOpen={drawerOpen}
+          onCloseDrawer={() => setDrawerOpen(false)}
+        />
+        <main className="app-main">
+          {/* ── Mobile topbar (hidden on desktop via CSS) ─── */}
+          <div className="mobile-topbar">
+            <button
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Abrir menú"
+              style={{
+                background: 'transparent',
+                border: `1px solid ${theme.pageInk}20`,
+                borderRadius: 10,
+                color: theme.pageInk,
+                width: 40, height: 40,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 20, cursor: 'pointer', lineHeight: 1,
+              }}
+            >
+              ☰
+            </button>
+            <div style={{
+              fontFamily: FAMILY.display,
+              fontSize: 22, fontStyle: 'italic',
+              fontWeight: 400, letterSpacing: '-0.02em',
+              color: theme.pageInk,
+            }}>
+              Prime
+            </div>
+            <div style={{ width: 40 }} />{/* spacer to center logo */}
+          </div>
+          {children}
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div style={{

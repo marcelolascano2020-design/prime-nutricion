@@ -32,6 +32,7 @@ function MealRow({ item, palette, onDelete, isLast }) {
   const [hover, setHover] = useState(false)
   return (
     <div
+      className="meal-row"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -63,7 +64,7 @@ function MealRow({ item, palette, onDelete, isLast }) {
           opacity: 0.6, letterSpacing: '0.2em', textTransform: 'uppercase', fontWeight: 500,
         }}>kcal</span>
       </div>
-      <button onClick={onDelete} aria-label="Eliminar" style={{
+      <button onClick={onDelete} aria-label="Eliminar" className="meal-delete-btn" style={{
         opacity: hover ? 0.5 : 0,
         transition: 'opacity .2s',
         background: 'transparent', border: 0,

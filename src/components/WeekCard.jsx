@@ -12,15 +12,18 @@ export default function WeekCard({ palette, data, goal }) {
         <MicroLabel>Objetivo {fmtNum(goal)} kcal</MicroLabel>
       </div>
 
-      <div style={{
-        marginTop: 28,
-        display: 'grid',
-        gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
-        gap: 20,
-        alignItems: 'end',
-        height: 200,
-        position: 'relative',
-      }}>
+      <div
+        className="week-chart-grid"
+        style={{
+          marginTop: 28,
+          display: 'grid',
+          gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+          gap: 20,
+          alignItems: 'end',
+          height: 200,
+          position: 'relative',
+        }}
+      >
         <div style={{
           position: 'absolute', left: 0, right: 0,
           bottom: `${(goal / max) * 100}%`,
