@@ -99,6 +99,15 @@ export default function Onboarding({ theme }) {
 
   const [step, setStep] = useState(1)
   const [visible, setVisible] = useState(true)
+  const [saving,  setSaving]  = useState(false)
+
+  // ── Estado de debug visible en pantalla ────────────────────────
+  const [debug, setDebug] = useState({
+    lastAttempt: null,   // timestamp del último intento
+    error: null,         // mensaje de error
+    supabaseResp: null,  // objeto devuelto por Supabase
+    status: null,        // 'ok' | 'error' | null
+  })
 
   const [form, setForm] = useState({
     // Paso 1
@@ -131,19 +140,33 @@ export default function Onboarding({ theme }) {
   }
 
   async function handleFinish() {
+    const ts = new Date().toLocaleTimeString('es-AR')
     console.log('[Onboarding] handleFinish — user:', user?.id ?? 'null')
+
     if (!user) {
-      console.error('[Onboarding] Sin usuario autenticado — abortando')
+      const msg = 'Sin usuario autenticado — no hay sesión activa'
+      console.error('[Onboarding]', msg)
+      setDebug({ lastAttempt: ts, error: msg, supabaseResp: null, status: 'error' })
       return
     }
+
+    setSaving(true)
+    setDebug(d => ({ ...d, lastAttempt: ts, error: null, supabaseResp: null, status: null }))
+
     try {
       console.log('[Onboarding] Llamando saveProfile con form:', form)
       const saved = await saveProfile(form)
       console.log('[Onboarding] saveProfile OK:', saved)
+      setDebug({ lastAttempt: ts, error: null, supabaseResp: saved, status: 'ok' })
+      // Pequeña pausa para que el usuario vea el debug verde antes de navegar
+      await new Promise(r => setTimeout(r, 800))
       navigate('/dashboard', { replace: true })
     } catch (e) {
+      const msg = e?.message ?? String(e)
       console.error('[Onboarding] saveProfile FALLÓ:', e)
-      // No navegamos si el save falló — el usuario se queda en el paso 5
+      setDebug({ lastAttempt: ts, error: msg, supabaseResp: e, status: 'error' })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -173,8 +196,32 @@ export default function Onboarding({ theme }) {
             fontFamily: FAMILY.display, fontSize: 24, fontStyle: 'italic',
             fontWeight: 400, letterSpacing: '-0.02em',
           }}>Prime</div>
-          <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, opacity: 0.4 }}>
-            {step} / {TOTAL_STEPS}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/* ── Botón debug temporal "Ver estado auth" ── */}
+            <button
+              onClick={() => {
+                const info = user
+                  ? `✅ AUTENTICADO\n\nuser.id: ${user.id}\nemail:   ${user.email}`
+                  : '❌ NO AUTENTICADO\n\nNo hay sesión activa.\nEl onboarding no podrá guardar.'
+                alert(info)
+              }}
+              style={{
+                background: user ? `${ink}12` : `${accent}25`,
+                border: `1px solid ${user ? ink + '30' : accent + '60'}`,
+                borderRadius: 8, color: user ? ink : accent,
+                fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.12em', textTransform: 'uppercase',
+                padding: '5px 10px', cursor: 'pointer',
+                fontFamily: FAMILY.body,
+              }}
+            >
+              {user ? '✓ Auth' : '⚠ Sin auth'}
+            </button>
+
+            <div style={{ fontSize: 11, letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600, opacity: 0.4 }}>
+              {step} / {TOTAL_STEPS}
+            </div>
           </div>
         </div>
 
@@ -405,6 +452,91 @@ export default function Onboarding({ theme }) {
                 </div>
               </div>
 
+              {/* ── Panel de debug (producción) ─────────────── */}
+              <div style={{
+                background: `${ink}08`,
+                border: `1px solid ${ink}18`,
+                borderRadius: 14, padding: 16,
+                fontFamily: FAMILY.mono, fontSize: 11,
+                lineHeight: 1.6, letterSpacing: '0.02em',
+              }}>
+                {/* Estado de autenticación */}
+                <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                    background: user ? '#4caf50' : '#f44336', flexShrink: 0,
+                  }} />
+                  <span style={{ opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.14em', fontSize: 9 }}>
+                    Auth
+                  </span>
+                  <span style={{ fontWeight: 600, color: user ? '#4caf50' : '#f44336' }}>
+                    {user ? 'Autenticado' : 'SIN SESIÓN'}
+                  </span>
+                </div>
+                {user && (
+                  <div style={{ opacity: 0.65, marginBottom: 6, wordBreak: 'break-all' }}>
+                    <span style={{ opacity: 0.5 }}>id: </span>{user.id}
+                  </div>
+                )}
+                {user && (
+                  <div style={{ opacity: 0.65, marginBottom: 10, wordBreak: 'break-all' }}>
+                    <span style={{ opacity: 0.5 }}>email: </span>{user.email}
+                  </div>
+                )}
+
+                {/* Último intento de guardado */}
+                {debug.lastAttempt && (
+                  <>
+                    <div style={{ borderTop: `1px solid ${ink}15`, paddingTop: 10, marginTop: 6 }}>
+                      <span style={{ opacity: 0.5 }}>Último intento: </span>
+                      <span style={{ fontWeight: 600 }}>{debug.lastAttempt}</span>
+                      {' '}
+                      <span style={{
+                        fontWeight: 700,
+                        color: debug.status === 'ok' ? '#4caf50' : debug.status === 'error' ? '#f44336' : ink,
+                      }}>
+                        {debug.status === 'ok' ? '✓ OK' : debug.status === 'error' ? '✗ ERROR' : '…'}
+                      </span>
+                    </div>
+
+                    {debug.error && (
+                      <div style={{
+                        marginTop: 8, padding: '10px 12px',
+                        background: 'rgba(244,67,54,0.12)',
+                        border: '1px solid rgba(244,67,54,0.3)',
+                        borderRadius: 8, color: '#f44336',
+                        wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+                      }}>
+                        <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Error</div>
+                        {debug.error}
+                      </div>
+                    )}
+
+                    {debug.supabaseResp && debug.status === 'ok' && (
+                      <div style={{
+                        marginTop: 8, padding: '10px 12px',
+                        background: 'rgba(76,175,80,0.10)',
+                        border: '1px solid rgba(76,175,80,0.25)',
+                        borderRadius: 8, color: '#4caf50',
+                        wordBreak: 'break-word',
+                      }}>
+                        <div style={{ fontWeight: 700, marginBottom: 4, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase' }}>Supabase response</div>
+                        <span style={{ opacity: 0.85 }}>
+                          nombre: {debug.supabaseResp.nombre} · peso_inicial_kg: {debug.supabaseResp.peso_inicial_kg} · onboarding_completado: {String(debug.supabaseResp.onboarding_completado)}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Hint si todavía no se intentó */}
+                {!debug.lastAttempt && (
+                  <div style={{ opacity: 0.4, fontStyle: 'italic' }}>
+                    Presioná "Comenzar →" para ver el resultado del guardado en tiempo real.
+                  </div>
+                )}
+              </div>
+
               <div style={{
                 background: `${ink}07`, borderRadius: 20, padding: 24,
                 border: `1px solid ${ink}12`,
@@ -469,22 +601,42 @@ export default function Onboarding({ theme }) {
           )}
           <button
             onClick={handleNext}
-            disabled={!canNext()}
+            disabled={!canNext() || saving}
             style={{
               flex: 1, padding: '15px 24px', borderRadius: 14,
               border: 'none',
-              background: canNext() ? accent : `${ink}15`,
-              color: canNext() ? '#0c0d0a' : `${ink}40`,
+              background: (canNext() && !saving) ? accent : `${ink}15`,
+              color: (canNext() && !saving) ? '#0c0d0a' : `${ink}40`,
               fontSize: 14, fontWeight: 700,
               fontFamily: FAMILY.body,
-              cursor: canNext() ? 'pointer' : 'not-allowed',
+              cursor: (canNext() && !saving) ? 'pointer' : 'not-allowed',
               letterSpacing: '0.04em',
               transition: 'all .2s',
             }}
           >
-            {step === TOTAL_STEPS ? 'Comenzar →' : 'Siguiente →'}
+            {saving ? 'Guardando…' : step === TOTAL_STEPS ? 'Comenzar →' : 'Siguiente →'}
           </button>
         </div>
+
+        {/* Error visible bajo el botón en paso 5 */}
+        {step === TOTAL_STEPS && debug.status === 'error' && (
+          <div style={{
+            marginTop: 14,
+            background: 'rgba(244,67,54,0.10)',
+            border: '1px solid rgba(244,67,54,0.35)',
+            borderRadius: 12, padding: '12px 16px',
+            fontSize: 13, color: '#f44336', lineHeight: 1.5,
+            fontFamily: FAMILY.body,
+          }}>
+            <strong>No se pudo guardar.</strong>{' '}
+            {debug.error}
+            {!user && (
+              <div style={{ marginTop: 6, opacity: 0.8, fontSize: 12 }}>
+                No hay sesión activa. Intentá cerrar y volver a abrir la app.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
