@@ -130,9 +130,11 @@ export default function Onboarding({ theme }) {
     if (step > 1) transition(step - 1)
   }
 
-  function handleFinish() {
-    if (user) {
-      saveProfile(user.id, form)
+  async function handleFinish() {
+    try {
+      await saveProfile(form)
+    } catch (e) {
+      console.error('Error guardando perfil:', e)
     }
     navigate('/dashboard', { replace: true })
   }

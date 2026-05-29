@@ -1,29 +1,50 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchProfile, upsertProfile } from '../lib/db'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user,    setUser]    = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [user,           setUser]           = useState(null)
+  const [loading,        setLoading]        = useState(true)   // auth session check
+  const [profile,        setProfile]        = useState(null)   // profiles row
+  const [profileLoading, setProfileLoading] = useState(false)  // per-user profile fetch
 
+  // ── Fetch profile whenever user changes ────────────────────────
+  const loadProfile = useCallback(async (u) => {
+    if (!u) { setProfile(null); setProfileLoading(false); return }
+    setProfileLoading(true)
+    try {
+      const p = await fetchProfile(u.id)
+      setProfile(p)   // null if onboarding not complete
+    } catch (e) {
+      console.error('Error loading profile:', e)
+      setProfile(null)
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [])
+
+  // ── Bootstrap: restore session + listen for changes ────────────
   useEffect(() => {
-    // Hydrate session from Supabase on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+      const u = session?.user ?? null
+      setUser(u)
       setLoading(false)
+      loadProfile(u)
     })
 
-    // Keep in sync with auth state changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      const u = session?.user ?? null
+      setUser(u)
       setLoading(false)
+      loadProfile(u)
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [loadProfile])
 
-  // ── Auth actions ─────────────────────────────────────────────
+  // ── Auth actions ───────────────────────────────────────────────
 
   const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -41,6 +62,7 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     await supabase.auth.signOut()
+    setProfile(null)
   }
 
   const resetPassword = async (email) => {
@@ -50,35 +72,25 @@ export function AuthProvider({ children }) {
     return { error }
   }
 
-  // ── Profile helpers (localStorage keyed by user.id) ──────────
-
-  const profileKey = (userId) => `prime_profile_${userId}`
-
-  const hasProfile = (userId) =>
-    Boolean(localStorage.getItem(profileKey(userId)))
-
-  const getProfile = (userId) => {
-    try { return JSON.parse(localStorage.getItem(profileKey(userId)) || '{}') }
-    catch { return {} }
-  }
-
-  const saveProfile = (userId, data) => {
-    localStorage.setItem(profileKey(userId), JSON.stringify({
-      ...data,
-      savedAt: new Date().toISOString(),
-    }))
+  // ── Profile: save (onboarding finish) ─────────────────────────
+  /** Guarda el perfil en Supabase y actualiza el contexto */
+  const saveProfile = async (formData) => {
+    if (!user) throw new Error('No user')
+    const saved = await upsertProfile(user.id, formData)
+    setProfile(saved)
+    return saved
   }
 
   return (
     <AuthContext.Provider value={{
       user,
       loading,
+      profile,
+      profileLoading,
       login,
       register,
       logout,
       resetPassword,
-      hasProfile,
-      getProfile,
       saveProfile,
     }}>
       {children}
