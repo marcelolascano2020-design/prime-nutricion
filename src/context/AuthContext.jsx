@@ -28,16 +28,14 @@ export function AuthProvider({ children }) {
   }, [])
 
   // ── Bootstrap: restore session + listen for changes ────────────
+  // En Supabase JS v2, onAuthStateChange dispara INITIAL_SESSION
+  // de forma inmediata — no hace falta llamar getSession() por separado.
+  // Usar ambos causaba un doble loadProfile que podía resetear el profile
+  // justo después del saveProfile del onboarding.
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const u = session?.user ?? null
-      setUser(u)
-      setLoading(false)
-      loadProfile(u)
-    })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const u = session?.user ?? null
+      console.log('[AuthContext] onAuthStateChange — event:', _event, '| user:', u?.id ?? 'null')
       setUser(u)
       setLoading(false)
       loadProfile(u)
@@ -77,8 +75,10 @@ export function AuthProvider({ children }) {
   // ── Profile: save (onboarding finish) ─────────────────────────
   /** Guarda el perfil en Supabase y actualiza el contexto */
   const saveProfile = async (formData) => {
-    if (!user) throw new Error('No user')
+    console.log('[AuthContext] saveProfile — user:', user?.id ?? 'null')
+    if (!user) throw new Error('No hay usuario autenticado')
     const saved = await upsertProfile(user.id, formData)
+    console.log('[AuthContext] upsertProfile result:', saved)
     setProfile(saved)
     return saved
   }

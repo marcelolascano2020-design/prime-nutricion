@@ -131,12 +131,20 @@ export default function Onboarding({ theme }) {
   }
 
   async function handleFinish() {
-    try {
-      await saveProfile(form)
-    } catch (e) {
-      console.error('Error guardando perfil:', e)
+    console.log('[Onboarding] handleFinish — user:', user?.id ?? 'null')
+    if (!user) {
+      console.error('[Onboarding] Sin usuario autenticado — abortando')
+      return
     }
-    navigate('/dashboard', { replace: true })
+    try {
+      console.log('[Onboarding] Llamando saveProfile con form:', form)
+      const saved = await saveProfile(form)
+      console.log('[Onboarding] saveProfile OK:', saved)
+      navigate('/dashboard', { replace: true })
+    } catch (e) {
+      console.error('[Onboarding] saveProfile FALLÓ:', e)
+      // No navegamos si el save falló — el usuario se queda en el paso 5
+    }
   }
 
   const canNext = () => {
