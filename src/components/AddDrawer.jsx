@@ -21,55 +21,57 @@ function getDefaultMoment() {
   return 'cena'
 }
 
+// ── URL base de la Edge Function ─────────────────────────────────────────────
+const EDGE_FN_URL =
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-nutrition`
+const EDGE_FN_HEADERS = {
+  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+  'Content-Type': 'application/json',
+}
+
 async function estimateFood(description) {
-  const prompt = `Analizá este alimento y dame los valores nutricionales exactos.
-
-Alimento: ${description}
-
-Reglas:
-- Calculá basándote en las cantidades EXACTAS que se mencionan (gramos, unidades, etc.)
-- Sumá todos los ingredientes por separado y dá el total
-- Ejemplos de referencia: 1 galleta de arroz estándar (10g) ≈ 35 kcal; 10g queso crema ≈ 33 kcal
-- Sé preciso. No uses valores genéricos ni redondeos bruscos.
-- Respondé SOLO con JSON válido. Sin texto adicional. Sin markdown. Sin backticks.
-
-Formato exacto:
-{"name":"nombre descriptivo corto en español","kcal":número entero,"protein_g":número,"carbs_g":número,"fat_g":número}`
-
   try {
-    const res = await window.claude.complete(prompt)
-    console.log('[estimateFood] respuesta cruda:', res)
-    const match = res.match(/\{[\s\S]*?\}/)
-    if (!match) throw new Error('No se encontró JSON en la respuesta')
-    const j = JSON.parse(match[0])
-    console.log('[estimateFood] JSON parseado:', j)
+    const res = await fetch(EDGE_FN_URL, {
+      method: 'POST',
+      headers: EDGE_FN_HEADERS,
+      body: JSON.stringify({ description, type: 'food' }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+    const j = await res.json()
+    console.log('[estimateFood] respuesta edge fn:', j)
+    if (j.error) throw new Error(j.error)
     return {
       name:    String(j.name || description).slice(0, 80),
-      kcal:    Math.round(Number(j.kcal)                       || 0),
-      protein: Math.round(Number(j.protein_g ?? j.protein)     || 0),
-      carbs:   Math.round(Number(j.carbs_g   ?? j.carbs)       || 0),
-      fat:     Math.round(Number(j.fat_g     ?? j.fat)         || 0),
+      kcal:    Math.round(Number(j.kcal)                   || 0),
+      protein: Math.round(Number(j.protein_g ?? j.protein) || 0),
+      carbs:   Math.round(Number(j.carbs_g   ?? j.carbs)   || 0),
+      fat:     Math.round(Number(j.fat_g     ?? j.fat)     || 0),
     }
   } catch (e) {
-    console.error('[estimateFood] error al parsear:', e)
-    // Devuelve 0s explícitos — nunca valores hardcodeados que confunden al usuario
+    console.error('[estimateFood] error:', e.message)
     return { name: description.slice(0, 60), kcal: 0, protein: 0, carbs: 0, fat: 0 }
   }
 }
 
 async function estimateExercise(description) {
-  const prompt = `Estima calorías quemadas para una persona de 70 kg haciendo: "${description}". Responde SOLO con JSON válido. Formato: {"name":"nombre corto en español","duration":"X min","kcal":entero}`
   try {
-    const res = await window.claude.complete(prompt)
-    const match = res.match(/\{[\s\S]*\}/)
-    const j = JSON.parse(match[0])
+    const res = await fetch(EDGE_FN_URL, {
+      method: 'POST',
+      headers: EDGE_FN_HEADERS,
+      body: JSON.stringify({ description, type: 'exercise' }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
+    const j = await res.json()
+    console.log('[estimateExercise] respuesta edge fn:', j)
+    if (j.error) throw new Error(j.error)
     return {
-      name: String(j.name || description).slice(0, 80),
-      duration: String(j.duration || '30 min'),
-      kcal: Math.round(Number(j.kcal) || 0),
+      name:     String(j.name || description).slice(0, 80),
+      duration: j.duration_min ? `${j.duration_min} min` : '30 min',
+      kcal:     Math.round(Number(j.kcal) || 0),
     }
-  } catch {
-    return { name: description.slice(0, 60), duration: '30 min', kcal: 150 }
+  } catch (e) {
+    console.error('[estimateExercise] error:', e.message)
+    return { name: description.slice(0, 60), duration: '30 min', kcal: 0 }
   }
 }
 
