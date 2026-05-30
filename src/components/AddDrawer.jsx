@@ -2,6 +2,25 @@ import { useState, useRef, useEffect } from 'react'
 import { MicroLabel } from './ui'
 import { FAMILY, nowHHMM } from '../theme'
 
+const MOMENTS = [
+  { key: 'desayuno',   label: 'Desayuno',    icon: '🌅' },
+  { key: 'col_manana', label: 'Col. Mañana', icon: '🍎' },
+  { key: 'almuerzo',   label: 'Almuerzo',    icon: '☀️' },
+  { key: 'col_tarde',  label: 'Col. Tarde',  icon: '🍊' },
+  { key: 'merienda',   label: 'Merienda',    icon: '☕' },
+  { key: 'cena',       label: 'Cena',        icon: '🌙' },
+]
+
+function getDefaultMoment() {
+  const h = new Date().getHours()
+  if (h < 10) return 'desayuno'
+  if (h < 12) return 'col_manana'
+  if (h < 15) return 'almuerzo'
+  if (h < 17) return 'col_tarde'
+  if (h < 20) return 'merienda'
+  return 'cena'
+}
+
 async function estimateFood(description) {
   const prompt = `Estima nutrición para: "${description}". Responde SOLO con JSON válido sin markdown ni backticks. Formato: {"name":"nombre corto en español","kcal":entero,"protein":gramos entero,"carbs":gramos entero,"fat":gramos entero}`
   try {
@@ -135,6 +154,7 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
   const [weight, setWeight] = useState(currentWeight || 75)
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [moment, setMoment] = useState(getDefaultMoment)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -142,6 +162,7 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
       setTab(initialTab || 'food')
       setText(''); setPhoto(null); setPreview(null); setLoading(false)
       setWeight(currentWeight || 75)
+      setMoment(getDefaultMoment())
       setTimeout(() => inputRef.current && inputRef.current.focus(), 220)
     }
   }, [open, initialTab, currentWeight])
@@ -164,7 +185,7 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
   const confirm = () => {
     const time = nowHHMM()
     if (preview.kind === 'food') {
-      onAddFood({ id: Date.now(), time, photo, name: preview.name, kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, tag: tab.slice(0, 3) })
+      onAddFood({ id: Date.now(), time, photo, name: preview.name, kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, tag: moment })
     } else {
       onAddExercise({ id: Date.now(), time, name: preview.name, duration: preview.duration, kcal: preview.kcal })
     }
@@ -240,6 +261,32 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
           {/* FOOD */}
           {tab === 'food' && !preview && (
             <div style={{ marginTop: 24 }}>
+
+              {/* Momento del día */}
+              <div style={{ marginBottom: 20 }}>
+                <MicroLabel>Momento del día</MicroLabel>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {MOMENTS.map(m => {
+                    const active = moment === m.key
+                    return (
+                      <button key={m.key} onClick={() => setMoment(m.key)} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                        padding: '10px 6px',
+                        background: active ? theme.accent : 'transparent',
+                        color: active ? theme.page : drawerInk,
+                        border: `1px solid ${active ? theme.accent : drawerInk + '33'}`,
+                        borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+                        fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600,
+                        transition: 'background .15s ease, color .15s ease, border-color .15s ease',
+                      }}>
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{m.icon}</span>
+                        <span style={{ marginTop: 2 }}>{m.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <PhotoUploader photo={photo} onChange={setPhoto} ink={drawerInk} accent={accent} bg={drawerBg} />
               <div style={{ marginTop: 24, fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
                 Describí en lenguaje natural. Yo calculo calorías y macros.
@@ -251,7 +298,7 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
                 placeholder="2 huevos revueltos con tostada de aguacate y café negro"
                 rows={2} style={textareaStyle}
               />
-              <SubmitBar loading={loading} canSubmit={!!text.trim()} onSubmit={submit} accent={accent} drawerBg={drawerBg} />
+              <SubmitBar loading={loading} canSubmit={!!text.trim() && !!moment} onSubmit={submit} accent={accent} drawerBg={drawerBg} />
             </div>
           )}
 

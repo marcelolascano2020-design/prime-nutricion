@@ -11,6 +11,7 @@ import Ejercicio      from './pages/Ejercicio'
 import Progreso       from './pages/Progreso'
 import Perfil         from './pages/Perfil'
 import Onboarding     from './pages/Onboarding'
+import Historial      from './pages/Historial'
 import Login          from './pages/Login'
 import Register       from './pages/Register'
 import ForgotPassword from './pages/ForgotPassword'
@@ -220,6 +221,11 @@ function AppInner() {
         <Route path="/progreso" element={
           <RequireAuth><RequireProfile>
             <AppShell><Progreso theme={theme} /></AppShell>
+          </RequireProfile></RequireAuth>
+        } />
+        <Route path="/historial" element={
+          <RequireAuth><RequireProfile>
+            <AppShell><Historial theme={theme} /></AppShell>
           </RequireProfile></RequireAuth>
         } />
         <Route path="/perfil" element={

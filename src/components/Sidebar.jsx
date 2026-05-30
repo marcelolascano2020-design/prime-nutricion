@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/agua',      icon: '💧', label: 'Agua'     },
   { to: '/ejercicio', icon: '🏃', label: 'Ejercicio' },
   { to: '/progreso',  icon: '📸', label: 'Progreso'  },
+  { to: '/historial', icon: '📅', label: 'Historial' },
   { to: '/perfil',    icon: '⚙️', label: 'Perfil'   },
 ]
 

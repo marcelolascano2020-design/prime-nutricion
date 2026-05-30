@@ -110,6 +110,51 @@ export async function updateProfileSettings(userId, settings) {
 
 // ── MEALS ────────────────────────────────────────────────────────────────────
 
+/**
+ * Sube un blob URL (URL.createObjectURL) a Supabase Storage.
+ * Devuelve el path en el bucket: '{userId}/{timestamp}.ext'
+ */
+async function uploadMealPhoto(userId, blobUrl) {
+  const resp = await fetch(blobUrl)
+  const blob = await resp.blob()
+  const ext  = blob.type.includes('png')
+    ? 'png'
+    : blob.type.includes('webp') ? 'webp' : 'jpg'
+  const path = `${userId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage
+    .from('meals-photos')
+    .upload(path, blob, { contentType: blob.type, upsert: false })
+  if (error) throw error
+  console.log('[uploadMealPhoto] subido al path:', path)
+  return path
+}
+
+/**
+ * Convierte storage paths a signed URLs (24 h).
+ * Si ya es http/blob, lo deja tal cual.
+ */
+async function addSignedPhotoUrls(meals) {
+  if (!meals.length) return meals
+  return Promise.all(meals.map(async meal => {
+    if (
+      !meal.photo ||
+      meal.photo.startsWith('http') ||
+      meal.photo.startsWith('blob:')
+    ) return meal
+
+    const { data, error } = await supabase.storage
+      .from('meals-photos')
+      .createSignedUrl(meal.photo, 60 * 60 * 24) // 24 h
+
+    if (error) console.error('[addSignedPhotoUrls] meal', meal.id, error.message)
+    console.log(
+      '[addSignedPhotoUrls] meal', meal.id,
+      '→', data?.signedUrl ? 'OK (signed URL)' : 'FALLO (null)',
+    )
+    return { ...meal, photo: data?.signedUrl ?? null }
+  }))
+}
+
 /** Comidas del día actual del usuario, ordenadas cronológicamente */
 export async function fetchTodayMeals(userId) {
   const { from, to } = todayRange()
@@ -121,11 +166,37 @@ export async function fetchTodayMeals(userId) {
     .lt('logged_at', to)
     .order('logged_at', { ascending: true })
   if (error) throw error
-  return (data || []).map(rowToMeal)
+  const meals = (data || []).map(rowToMeal)
+  console.log(
+    '[fetchTodayMeals] foto_urls crudos:',
+    meals.map(m => ({ id: m.id, photo: m.photo })),
+  )
+  return addSignedPhotoUrls(meals)
 }
 
-/** Inserta una comida y devuelve el objeto con UUID real */
+/**
+ * Inserta una comida.
+ * Si meal.photo es un blob URL, lo sube a Storage primero.
+ * Devuelve el objeto con el blob URL original para display inmediato
+ * (tras reload, fetchTodayMeals devuelve la signed URL desde Storage).
+ */
 export async function insertMeal(userId, meal) {
+  const originalPhoto = meal.photo || null   // blob URL para display en sesión actual
+
+  // ── Subir foto si viene como blob URL ─────────────────────────
+  let fotoPath = null
+  if (meal.photo && meal.photo.startsWith('blob:')) {
+    try {
+      fotoPath = await uploadMealPhoto(userId, meal.photo)
+    } catch (e) {
+      console.error('[insertMeal] upload de foto falló, se guarda sin foto:', e.message)
+    }
+  } else if (meal.photo) {
+    fotoPath = meal.photo   // ya es un path o URL directa
+  }
+
+  console.log('[insertMeal] foto_url que se guarda en DB:', fotoPath)
+
   const { data, error } = await supabase
     .from('meals')
     .insert({
@@ -136,14 +207,16 @@ export async function insertMeal(userId, meal) {
       proteina_g:  Number(meal.protein) || 0,
       carbos_g:    Number(meal.carbs)   || 0,
       grasa_g:     Number(meal.fat)     || 0,
-      foto_url:    meal.photo           || null,
+      foto_url:    fotoPath,
       ai_estimado: true,
       logged_at:   new Date().toISOString(),
     })
     .select()
     .single()
   if (error) throw error
-  return rowToMeal(data)
+
+  // Devolver con blob URL para que se vea inmediatamente sin esperar signed URL
+  return { ...rowToMeal(data), photo: originalPhoto }
 }
 
 export async function deleteMeal(id) {
@@ -163,6 +236,37 @@ function rowToMeal(r) {
     photo:   r.foto_url           || null,
     tag:     r.momento,
   }
+}
+
+/** Igual que rowToMeal pero agrega campo `date` ('YYYY-MM-DD' local) */
+function rowToMealWithDate(r) {
+  const d = new Date(r.logged_at)
+  const date = [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-')
+  return { ...rowToMeal(r), date }
+}
+
+/**
+ * Todas las comidas de un mes (year/month en tiempo local del usuario).
+ * Devuelve los registros con el campo `date` ('YYYY-MM-DD') adicional.
+ */
+export async function fetchMonthMeals(userId, year, month) {
+  const start = new Date(year, month, 1, 0, 0, 0, 0)
+  const end   = new Date(year, month + 1, 1, 0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('meals')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('logged_at', start.toISOString())
+    .lt('logged_at', end.toISOString())
+    .order('logged_at', { ascending: true })
+  if (error) throw error
+  const meals = (data || []).map(rowToMealWithDate)
+  return addSignedPhotoUrls(meals)
 }
 
 // ── WEIGHT ───────────────────────────────────────────────────────────────────
