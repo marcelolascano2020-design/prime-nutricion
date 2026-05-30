@@ -22,20 +22,38 @@ function getDefaultMoment() {
 }
 
 async function estimateFood(description) {
-  const prompt = `Estima nutrición para: "${description}". Responde SOLO con JSON válido sin markdown ni backticks. Formato: {"name":"nombre corto en español","kcal":entero,"protein":gramos entero,"carbs":gramos entero,"fat":gramos entero}`
+  const prompt = `Analizá este alimento y dame los valores nutricionales exactos.
+
+Alimento: ${description}
+
+Reglas:
+- Calculá basándote en las cantidades EXACTAS que se mencionan (gramos, unidades, etc.)
+- Sumá todos los ingredientes por separado y dá el total
+- Ejemplos de referencia: 1 galleta de arroz estándar (10g) ≈ 35 kcal; 10g queso crema ≈ 33 kcal
+- Sé preciso. No uses valores genéricos ni redondeos bruscos.
+- Respondé SOLO con JSON válido. Sin texto adicional. Sin markdown. Sin backticks.
+
+Formato exacto:
+{"name":"nombre descriptivo corto en español","kcal":número entero,"protein_g":número,"carbs_g":número,"fat_g":número}`
+
   try {
     const res = await window.claude.complete(prompt)
-    const match = res.match(/\{[\s\S]*\}/)
+    console.log('[estimateFood] respuesta cruda:', res)
+    const match = res.match(/\{[\s\S]*?\}/)
+    if (!match) throw new Error('No se encontró JSON en la respuesta')
     const j = JSON.parse(match[0])
+    console.log('[estimateFood] JSON parseado:', j)
     return {
-      name: String(j.name || description).slice(0, 80),
-      kcal: Math.round(Number(j.kcal) || 0),
-      protein: Math.round(Number(j.protein) || 0),
-      carbs: Math.round(Number(j.carbs) || 0),
-      fat: Math.round(Number(j.fat) || 0),
+      name:    String(j.name || description).slice(0, 80),
+      kcal:    Math.round(Number(j.kcal)                       || 0),
+      protein: Math.round(Number(j.protein_g ?? j.protein)     || 0),
+      carbs:   Math.round(Number(j.carbs_g   ?? j.carbs)       || 0),
+      fat:     Math.round(Number(j.fat_g     ?? j.fat)         || 0),
     }
-  } catch {
-    return { name: description.slice(0, 60), kcal: 250, protein: 10, carbs: 30, fat: 8 }
+  } catch (e) {
+    console.error('[estimateFood] error al parsear:', e)
+    // Devuelve 0s explícitos — nunca valores hardcodeados que confunden al usuario
+    return { name: description.slice(0, 60), kcal: 0, protein: 0, carbs: 0, fat: 0 }
   }
 }
 
@@ -174,6 +192,7 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
   const submit = async () => {
     if (tab === 'weight') { onLogWeight(Number(weight)); onClose(); return }
     if (!text.trim() || loading) return
+    setPreview(null)   // limpiar resultado anterior para que no queden valores viejos
     setLoading(true)
     const r = tab === 'food'
       ? await estimateFood(text)
