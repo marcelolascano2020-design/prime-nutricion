@@ -18,3 +18,26 @@ export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseKey || 'placeholder-key',
 )
+
+export async function getTodayWater(userId) {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data, error } = await supabase
+    .from('water_logs')
+    .select('liters')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .maybeSingle()
+  if (error) throw error
+  return data?.liters ?? 0
+}
+
+export async function saveWaterLog(userId, liters) {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data, error } = await supabase
+    .from('water_logs')
+    .upsert({ user_id: userId, date: today, liters }, { onConflict: 'user_id,date' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
