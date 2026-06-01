@@ -35,7 +35,7 @@ export async function saveWaterLog(userId, liters) {
   const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('water_logs')
-    .upsert({ user_id: userId, fecha: today, litros: liters }, { onConflict: 'user_id,date' })
+    .upsert({ user_id: userId, fecha: today, litros: liters }, { onConflict: 'user_id,fecha' })
     .select()
     .single()
   if (error) throw error
