@@ -21,106 +21,6 @@ function getDefaultMoment() {
   return 'cena'
 }
 
-// ── Gemini Flash API ──────────────────────────────────────────────────────────
-
-// Verificación inmediata de la API key al cargar el módulo
-const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY
-console.log(
-  '[gemini] VITE_GEMINI_API_KEY:',
-  GEMINI_KEY ? `OK (${GEMINI_KEY.slice(0, 8)}...)` : '❌ UNDEFINED — agregar al .env'
-)
-
-const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`
-
-async function callGemini(prompt) {
-  if (!GEMINI_KEY) {
-    throw new Error('VITE_GEMINI_API_KEY no está definida en las variables de entorno')
-  }
-
-  console.log('[gemini] enviando request...')
-  const response = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    }),
-  })
-
-  // Leer body una sola vez (puede ser error o JSON)
-  const rawBody = await response.text()
-  console.log('[gemini] status:', response.status, '| body crudo:', rawBody)
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${rawBody}`)
-  }
-
-  let data
-  try {
-    data = JSON.parse(rawBody)
-  } catch {
-    throw new Error(`Respuesta no es JSON válido: ${rawBody}`)
-  }
-
-  console.log('[gemini] data completa:', JSON.stringify(data, null, 2))
-
-  // Validar estructura de la respuesta
-  if (!data.candidates || data.candidates.length === 0) {
-    console.error('[gemini] candidates vacío o undefined. data:', data)
-    // Puede llegar promptFeedback con blockReason si fue bloqueado
-    if (data.promptFeedback?.blockReason) {
-      throw new Error(`Gemini bloqueó la request: ${data.promptFeedback.blockReason}`)
-    }
-    throw new Error('Gemini no devolvió candidates. Ver console para el objeto completo.')
-  }
-
-  const candidate = data.candidates[0]
-  if (!candidate.content?.parts?.[0]?.text) {
-    console.error('[gemini] estructura inesperada en candidate:', candidate)
-    throw new Error(`Estructura inesperada: finishReason=${candidate.finishReason ?? 'unknown'}`)
-  }
-
-  const text = candidate.content.parts[0].text.trim()
-  console.log('[gemini] texto extraído:', text)
-  return text
-}
-
-async function estimateFood(description) {
-  try {
-    const prompt = `Sos un nutricionista. Analizá este alimento y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del alimento","kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número}. Sé preciso con las cantidades. Alimento: ${description}`
-    const text = await callGemini(prompt)
-    const j = JSON.parse(text.replace(/```json|```/g, '').trim())
-    console.log('[estimateFood] resultado parseado:', j)
-    return {
-      name:    String(j.name || description).slice(0, 80),
-      kcal:    Math.round(Number(j.kcal)                   || 0),
-      protein: Math.round(Number(j.protein_g ?? j.protein) || 0),
-      carbs:   Math.round(Number(j.carbs_g   ?? j.carbs)   || 0),
-      fat:     Math.round(Number(j.fat_g     ?? j.fat)     || 0),
-    }
-  } catch (e) {
-    console.error('[estimateFood] FALLÓ:', e.message)
-    return { name: description.slice(0, 60), kcal: 0, protein: 0, carbs: 0, fat: 0 }
-  }
-}
-
-async function estimateExercise(description) {
-  try {
-    const prompt = `Sos un nutricionista deportivo. Estimá las calorías quemadas para una persona de 70 kg y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del ejercicio","duration_min":número entero,"kcal":número entero}. Actividad: ${description}`
-    const text = await callGemini(prompt)
-    const j = JSON.parse(text.replace(/```json|```/g, '').trim())
-    console.log('[estimateExercise] resultado parseado:', j)
-    return {
-      name:     String(j.name || description).slice(0, 80),
-      duration: j.duration_min ? `${j.duration_min} min` : '30 min',
-      kcal:     Math.round(Number(j.kcal) || 0),
-    }
-  } catch (e) {
-    console.error('[estimateExercise] FALLÓ:', e.message)
-    return { name: description.slice(0, 60), duration: '30 min', kcal: 0 }
-  }
-}
-
 function PhotoUploader({ photo, onChange, ink, accent, bg }) {
   const inputRef = useRef(null)
   const [over, setOver] = useState(false)
@@ -173,96 +73,109 @@ function PhotoUploader({ photo, onChange, ink, accent, bg }) {
   )
 }
 
-function SubmitBar({ loading, canSubmit, onSubmit, accent, drawerBg }) {
+function MacroInput({ label, value, onChange, accent, ink }) {
   return (
-    <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 20 }}>
-      <span style={{ fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', opacity: 0.6 }}>
-        {loading ? 'Calculando…' : '⌘ + Enter'}
-      </span>
-      <button onClick={onSubmit} disabled={!canSubmit || loading} style={{
-        background: accent, color: drawerBg, border: 0,
-        padding: '14px 30px', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase',
-        fontWeight: 700, cursor: canSubmit && !loading ? 'pointer' : 'not-allowed',
-        borderRadius: 999, fontFamily: 'inherit',
-        opacity: canSubmit && !loading ? 1 : 0.4,
-      }}>{loading ? 'Calculando' : 'Calcular'}</button>
-    </div>
-  )
-}
-
-function PreviewStat({ label, value, unit, accent, emphasis }) {
-  return (
-    <div>
-      <MicroLabel style={{ fontSize: 10 }}>{label}</MicroLabel>
-      <div style={{
-        marginTop: 8,
-        fontFamily: FAMILY.display,
-        fontSize: emphasis ? 52 : 34, fontWeight: 400,
-        letterSpacing: '-0.015em', fontVariantNumeric: 'tabular-nums',
-        color: emphasis ? accent : 'inherit', lineHeight: 1,
-      }}>
-        {value}
-        {unit && (
-          <span style={{
-            fontSize: 13, marginLeft: 4, opacity: 0.6,
-            letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500,
-          }}>{unit}</span>
-        )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.6 }}>
+        {label}
       </div>
+      <input
+        type="number" min="0" value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          background: 'transparent',
+          border: 0,
+          borderBottom: `1px solid ${ink}33`,
+          outline: 'none',
+          fontFamily: FAMILY.display,
+          fontSize: 36,
+          fontWeight: 400,
+          letterSpacing: '-0.01em',
+          color: accent,
+          fontVariantNumeric: 'tabular-nums',
+          width: '100%',
+          padding: '4px 0 8px',
+        }}
+      />
     </div>
   )
 }
 
 export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddExercise, onLogWeight, currentWeight, theme }) {
   const [tab, setTab] = useState('food')
-  const [text, setText] = useState('')
   const [photo, setPhoto] = useState(null)
-  const [weight, setWeight] = useState(currentWeight || 75)
-  const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState(null)
   const [moment, setMoment] = useState(getDefaultMoment)
+
+  // Comida
+  const [foodName, setFoodName]     = useState('')
+  const [kcal, setKcal]             = useState('')
+  const [protein, setProtein]       = useState('')
+  const [carbs, setCarbs]           = useState('')
+  const [fat, setFat]               = useState('')
+
+  // Ejercicio
+  const [exName, setExName]         = useState('')
+  const [exDuration, setExDuration] = useState('')
+  const [exKcal, setExKcal]         = useState('')
+
+  // Peso
+  const [weight, setWeight]         = useState(currentWeight || 75)
+
   const inputRef = useRef(null)
 
   useEffect(() => {
     if (open) {
       setTab(initialTab || 'food')
-      setText(''); setPhoto(null); setPreview(null); setLoading(false)
-      setWeight(currentWeight || 75)
+      setPhoto(null)
       setMoment(getDefaultMoment())
+      setFoodName(''); setKcal(''); setProtein(''); setCarbs(''); setFat('')
+      setExName(''); setExDuration(''); setExKcal('')
+      setWeight(currentWeight || 75)
       setTimeout(() => inputRef.current && inputRef.current.focus(), 220)
     }
   }, [open, initialTab, currentWeight])
 
-  const drawerBg = theme.page
+  const drawerBg  = theme.page
   const drawerInk = theme.pageInk
-  const accent = theme.tiles.weight.bg
+  const accent    = theme.tiles.weight.bg
 
-  const submit = async () => {
-    if (tab === 'weight') { onLogWeight(Number(weight)); onClose(); return }
-    if (!text.trim() || loading) return
-    setPreview(null)   // limpiar resultado anterior para que no queden valores viejos
-    setLoading(true)
-    const r = tab === 'food'
-      ? await estimateFood(text)
-      : await estimateExercise(text)
-    setPreview({ kind: tab, ...r })
-    setLoading(false)
+  const canSubmitFood = foodName.trim() && kcal !== ''
+  const canSubmitEx   = exName.trim() && exKcal !== ''
+
+  const submitFood = () => {
+    if (!canSubmitFood) return
+    onAddFood({
+      id: Date.now(), time: nowHHMM(), photo,
+      name:    foodName.trim(),
+      kcal:    Math.round(Number(kcal)    || 0),
+      protein: Math.round(Number(protein) || 0),
+      carbs:   Math.round(Number(carbs)   || 0),
+      fat:     Math.round(Number(fat)     || 0),
+      tag: moment,
+    })
+    onClose()
   }
 
-  const confirm = () => {
-    const time = nowHHMM()
-    if (preview.kind === 'food') {
-      onAddFood({ id: Date.now(), time, photo, name: preview.name, kcal: preview.kcal, protein: preview.protein, carbs: preview.carbs, fat: preview.fat, tag: moment })
-    } else {
-      onAddExercise({ id: Date.now(), time, name: preview.name, duration: preview.duration, kcal: preview.kcal })
-    }
+  const submitExercise = () => {
+    if (!canSubmitEx) return
+    onAddExercise({
+      id: Date.now(), time: nowHHMM(),
+      name:     exName.trim(),
+      duration: exDuration ? `${exDuration} min` : '—',
+      kcal:     Math.round(Number(exKcal) || 0),
+    })
+    onClose()
+  }
+
+  const submitWeight = () => {
+    onLogWeight(Number(weight))
     onClose()
   }
 
   const tabs = [
-    { key: 'food', label: 'Comida' },
+    { key: 'food',     label: 'Comida'   },
     { key: 'exercise', label: 'Ejercicio' },
-    { key: 'weight', label: 'Peso' },
+    { key: 'weight',   label: 'Peso'     },
   ]
 
   const tabBtnStyle = active => ({
@@ -274,15 +187,23 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
     fontWeight: 600, cursor: 'pointer', borderRadius: 999, fontFamily: 'inherit',
   })
 
-  const primaryBtn = { background: accent, color: drawerBg, border: 0, padding: '14px 30px', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer', borderRadius: 999, fontFamily: 'inherit' }
-  const secondaryBtn = { background: 'transparent', color: drawerInk, border: `1px solid ${drawerInk}55`, padding: '14px 28px', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer', borderRadius: 999, fontFamily: 'inherit' }
-  const stepBtn = { background: 'transparent', border: `1px solid ${drawerInk}55`, width: 36, height: 36, borderRadius: 999, color: drawerInk, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit' }
+  const primaryBtn = {
+    background: accent, color: drawerBg, border: 0,
+    padding: '14px 30px', fontSize: 11, letterSpacing: '0.22em', textTransform: 'uppercase',
+    fontWeight: 700, cursor: 'pointer', borderRadius: 999, fontFamily: 'inherit',
+  }
+  const primaryBtnDisabled = { ...primaryBtn, opacity: 0.35, cursor: 'not-allowed' }
+  const stepBtn = {
+    background: 'transparent', border: `1px solid ${drawerInk}55`,
+    width: 36, height: 36, borderRadius: 999, color: drawerInk,
+    fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
+  }
 
-  const textareaStyle = {
+  const nameInputStyle = {
     width: '100%', background: 'transparent', color: 'inherit',
     border: 0, borderBottom: `1px solid ${drawerInk}33`,
     fontFamily: FAMILY.display, fontSize: 26, lineHeight: 1.35, fontWeight: 400,
-    padding: '10px 0 12px', outline: 'none', resize: 'none',
+    padding: '10px 0 12px', outline: 'none',
   }
 
   return (
@@ -318,15 +239,14 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
 
           <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
             {tabs.map(tb => (
-              <button key={tb.key} onClick={() => { setTab(tb.key); setPreview(null); setText('') }}
-                style={tabBtnStyle(tab === tb.key)}>
+              <button key={tb.key} onClick={() => setTab(tb.key)} style={tabBtnStyle(tab === tb.key)}>
                 {tb.label}
               </button>
             ))}
           </div>
 
-          {/* FOOD */}
-          {tab === 'food' && !preview && (
+          {/* ── COMIDA ── */}
+          {tab === 'food' && (
             <div style={{ marginTop: 24 }}>
 
               {/* Momento del día */}
@@ -355,38 +275,108 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
               </div>
 
               <PhotoUploader photo={photo} onChange={setPhoto} ink={drawerInk} accent={accent} bg={drawerBg} />
-              <div style={{ marginTop: 24, fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
-                Describí en lenguaje natural. Yo calculo calorías y macros.
+
+              {/* Nombre */}
+              <div style={{ marginTop: 24 }}>
+                <MicroLabel>Nombre del plato</MicroLabel>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={foodName}
+                  onChange={e => setFoodName(e.target.value)}
+                  placeholder="2 milanesas con puré"
+                  style={nameInputStyle}
+                />
               </div>
-              <textarea
-                ref={inputRef} value={text}
-                onChange={e => setText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-                placeholder="2 huevos revueltos con tostada de aguacate y café negro"
-                rows={2} style={textareaStyle}
-              />
-              <SubmitBar loading={loading} canSubmit={!!text.trim() && !!moment} onSubmit={submit} accent={accent} drawerBg={drawerBg} />
+
+              {/* Macros */}
+              <div style={{ marginTop: 24 }}>
+                <MicroLabel>Calorías y macros</MicroLabel>
+                <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20 }}>
+                  <MacroInput label="Kcal"      value={kcal}    onChange={setKcal}    accent={accent} ink={drawerInk} />
+                  <MacroInput label="Prot (g)"  value={protein} onChange={setProtein} accent={drawerInk} ink={drawerInk} />
+                  <MacroInput label="Carbs (g)" value={carbs}   onChange={setCarbs}   accent={drawerInk} ink={drawerInk} />
+                  <MacroInput label="Grasas (g)" value={fat}    onChange={setFat}     accent={drawerInk} ink={drawerInk} />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={submitFood}
+                  disabled={!canSubmitFood}
+                  style={canSubmitFood ? primaryBtn : primaryBtnDisabled}
+                >
+                  Registrar
+                </button>
+              </div>
             </div>
           )}
 
-          {/* EXERCISE */}
-          {tab === 'exercise' && !preview && (
+          {/* ── EJERCICIO ── */}
+          {tab === 'exercise' && (
             <div style={{ marginTop: 24 }}>
-              <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 10 }}>
-                Describí la actividad y la duración. Estimo calorías quemadas.
-              </div>
-              <textarea
-                ref={inputRef} value={text}
-                onChange={e => setText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-                placeholder="45 min cinta a paso rápido más 20 min de pesas"
-                rows={2} style={textareaStyle}
+              <MicroLabel>Actividad</MicroLabel>
+              <input
+                ref={inputRef}
+                type="text"
+                value={exName}
+                onChange={e => setExName(e.target.value)}
+                placeholder="Caminata, pesas, natación…"
+                style={{ ...nameInputStyle, marginTop: 10 }}
               />
-              <SubmitBar loading={loading} canSubmit={!!text.trim()} onSubmit={submit} accent={accent} drawerBg={drawerBg} />
+
+              <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <div>
+                  <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.6, marginBottom: 6 }}>
+                    Duración (min)
+                  </div>
+                  <input
+                    type="number" min="0" value={exDuration}
+                    onChange={e => setExDuration(e.target.value)}
+                    placeholder="45"
+                    style={{
+                      background: 'transparent', border: 0,
+                      borderBottom: `1px solid ${drawerInk}33`,
+                      outline: 'none', fontFamily: FAMILY.display,
+                      fontSize: 36, fontWeight: 400, color: drawerInk,
+                      fontVariantNumeric: 'tabular-nums',
+                      width: '100%', padding: '4px 0 8px',
+                    }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.6, marginBottom: 6 }}>
+                    Kcal quemadas
+                  </div>
+                  <input
+                    type="number" min="0" value={exKcal}
+                    onChange={e => setExKcal(e.target.value)}
+                    placeholder="300"
+                    style={{
+                      background: 'transparent', border: 0,
+                      borderBottom: `1px solid ${drawerInk}33`,
+                      outline: 'none', fontFamily: FAMILY.display,
+                      fontSize: 36, fontWeight: 400, color: accent,
+                      fontVariantNumeric: 'tabular-nums',
+                      width: '100%', padding: '4px 0 8px',
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 32, display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={submitExercise}
+                  disabled={!canSubmitEx}
+                  style={canSubmitEx ? primaryBtn : primaryBtnDisabled}
+                >
+                  Registrar
+                </button>
+              </div>
             </div>
           )}
 
-          {/* WEIGHT */}
+          {/* ── PESO ── */}
           {tab === 'weight' && (
             <div style={{ marginTop: 28 }}>
               <MicroLabel>Peso actual de báscula</MicroLabel>
@@ -413,56 +403,11 @@ export default function AddDrawer({ open, initialTab, onClose, onAddFood, onAddE
                 Se añadirá al historial con la fecha de hoy.
               </div>
               <div style={{ marginTop: 36, display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={submit} style={primaryBtn}>Guardar peso</button>
+                <button onClick={submitWeight} style={primaryBtn}>Guardar peso</button>
               </div>
             </div>
           )}
 
-          {/* PREVIEW */}
-          {preview && (
-            <div style={{ marginTop: 28 }}>
-              <MicroLabel>Vista previa</MicroLabel>
-              {photo && preview.kind === 'food' && (
-                <div style={{
-                  marginTop: 16, width: '100%', aspectRatio: '16 / 6',
-                  background: `url(${photo}) center/cover`, borderRadius: 20,
-                }} />
-              )}
-              <div style={{ marginTop: 16, paddingBottom: 24, borderBottom: `1px solid ${drawerInk}33` }}>
-                <div style={{
-                  fontFamily: FAMILY.display, fontSize: 30, fontWeight: 400,
-                  letterSpacing: '-0.01em', marginBottom: 20,
-                }}>
-                  {preview.name}
-                </div>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: preview.kind === 'food' ? 'auto 1fr 1fr 1fr' : 'auto 1fr',
-                  gap: 28, alignItems: 'baseline',
-                }}>
-                  <PreviewStat
-                    label={preview.kind === 'exercise' ? 'Quemadas' : 'Calorías'}
-                    value={(preview.kind === 'exercise' ? '−' : '') + preview.kcal}
-                    unit="kcal" accent={accent} emphasis
-                  />
-                  {preview.kind === 'food' && (
-                    <>
-                      <PreviewStat label="Proteína" value={preview.protein} unit="g" />
-                      <PreviewStat label="Carbs" value={preview.carbs} unit="g" />
-                      <PreviewStat label="Grasas" value={preview.fat} unit="g" />
-                    </>
-                  )}
-                  {preview.kind === 'exercise' && (
-                    <PreviewStat label="Duración" value={preview.duration} unit="" />
-                  )}
-                </div>
-              </div>
-              <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-                <button onClick={() => setPreview(null)} style={secondaryBtn}>Recalcular</button>
-                <button onClick={confirm} style={primaryBtn}>Registrar</button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </>
