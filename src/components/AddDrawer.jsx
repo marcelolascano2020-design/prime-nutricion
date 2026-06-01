@@ -21,25 +21,32 @@ function getDefaultMoment() {
   return 'cena'
 }
 
-// ── URL base de la Edge Function ─────────────────────────────────────────────
-const EDGE_FN_URL =
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-nutrition`
-const EDGE_FN_HEADERS = {
-  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-  'Content-Type': 'application/json',
+// ── Gemini Flash API ──────────────────────────────────────────────────────────
+
+const GEMINI_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+
+async function callGemini(prompt) {
+  const response = await fetch(GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }]
+    }),
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+  const data = await response.json()
+  const text = data.candidates[0].content.parts[0].text.trim()
+  console.log('[gemini] respuesta cruda:', text)
+  return text
 }
 
 async function estimateFood(description) {
   try {
-    const res = await fetch(EDGE_FN_URL, {
-      method: 'POST',
-      headers: EDGE_FN_HEADERS,
-      body: JSON.stringify({ description, type: 'food' }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
-    const j = await res.json()
-    console.log('[estimateFood] respuesta edge fn:', j)
-    if (j.error) throw new Error(j.error)
+    const prompt = `Sos un nutricionista. Analizá este alimento y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del alimento","kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número}. Sé preciso con las cantidades. Alimento: ${description}`
+    const text = await callGemini(prompt)
+    const j = JSON.parse(text.replace(/```json|```/g, '').trim())
+    console.log('[estimateFood] resultado:', j)
     return {
       name:    String(j.name || description).slice(0, 80),
       kcal:    Math.round(Number(j.kcal)                   || 0),
@@ -55,15 +62,10 @@ async function estimateFood(description) {
 
 async function estimateExercise(description) {
   try {
-    const res = await fetch(EDGE_FN_URL, {
-      method: 'POST',
-      headers: EDGE_FN_HEADERS,
-      body: JSON.stringify({ description, type: 'exercise' }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`)
-    const j = await res.json()
-    console.log('[estimateExercise] respuesta edge fn:', j)
-    if (j.error) throw new Error(j.error)
+    const prompt = `Sos un nutricionista deportivo. Estimá las calorías quemadas para una persona de 70 kg y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del ejercicio","duration_min":número entero,"kcal":número entero}. Actividad: ${description}`
+    const text = await callGemini(prompt)
+    const j = JSON.parse(text.replace(/```json|```/g, '').trim())
+    console.log('[estimateExercise] resultado:', j)
     return {
       name:     String(j.name || description).slice(0, 80),
       duration: j.duration_min ? `${j.duration_min} min` : '30 min',
