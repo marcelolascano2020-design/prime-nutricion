@@ -25,7 +25,7 @@ export async function getTodayWater(userId) {
     .from('water_logs')
     .select('litros')
     .eq('user_id', userId)
-    .eq('date', today)
+    .eq("fecha", today)
     .maybeSingle()
   if (error) throw error
   return data?.litros ?? 0
@@ -35,7 +35,7 @@ export async function saveWaterLog(userId, liters) {
   const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('water_logs')
-    .upsert({ user_id: userId, date: today, litros: liters }, { onConflict: 'user_id,date' })
+    .upsert({ user_id: userId, fecha: today, litros: liters }, { onConflict: 'user_id,date' })
     .select()
     .single()
   if (error) throw error
