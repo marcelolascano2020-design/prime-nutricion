@@ -23,19 +23,19 @@ export async function getTodayWater(userId) {
   const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('water_logs')
-    .select('liters')
+    .select('litros')
     .eq('user_id', userId)
     .eq('date', today)
     .maybeSingle()
   if (error) throw error
-  return data?.liters ?? 0
+  return data?.litros ?? 0
 }
 
 export async function saveWaterLog(userId, liters) {
   const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('water_logs')
-    .upsert({ user_id: userId, date: today, liters }, { onConflict: 'user_id,date' })
+    .upsert({ user_id: userId, date: today, litros: liters }, { onConflict: 'user_id,date' })
     .select()
     .single()
   if (error) throw error
