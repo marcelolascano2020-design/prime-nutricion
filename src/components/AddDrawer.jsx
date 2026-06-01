@@ -23,10 +23,22 @@ function getDefaultMoment() {
 
 // ── Gemini Flash API ──────────────────────────────────────────────────────────
 
+// Verificación inmediata de la API key al cargar el módulo
+const GEMINI_KEY = import.meta.env.VITE_GEMINI_API_KEY
+console.log(
+  '[gemini] VITE_GEMINI_API_KEY:',
+  GEMINI_KEY ? `OK (${GEMINI_KEY.slice(0, 8)}...)` : '❌ UNDEFINED — agregar al .env'
+)
+
 const GEMINI_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`
 
 async function callGemini(prompt) {
+  if (!GEMINI_KEY) {
+    throw new Error('VITE_GEMINI_API_KEY no está definida en las variables de entorno')
+  }
+
+  console.log('[gemini] enviando request...')
   const response = await fetch(GEMINI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -34,10 +46,42 @@ async function callGemini(prompt) {
       contents: [{ parts: [{ text: prompt }] }]
     }),
   })
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`)
-  const data = await response.json()
-  const text = data.candidates[0].content.parts[0].text.trim()
-  console.log('[gemini] respuesta cruda:', text)
+
+  // Leer body una sola vez (puede ser error o JSON)
+  const rawBody = await response.text()
+  console.log('[gemini] status:', response.status, '| body crudo:', rawBody)
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${rawBody}`)
+  }
+
+  let data
+  try {
+    data = JSON.parse(rawBody)
+  } catch {
+    throw new Error(`Respuesta no es JSON válido: ${rawBody}`)
+  }
+
+  console.log('[gemini] data completa:', JSON.stringify(data, null, 2))
+
+  // Validar estructura de la respuesta
+  if (!data.candidates || data.candidates.length === 0) {
+    console.error('[gemini] candidates vacío o undefined. data:', data)
+    // Puede llegar promptFeedback con blockReason si fue bloqueado
+    if (data.promptFeedback?.blockReason) {
+      throw new Error(`Gemini bloqueó la request: ${data.promptFeedback.blockReason}`)
+    }
+    throw new Error('Gemini no devolvió candidates. Ver console para el objeto completo.')
+  }
+
+  const candidate = data.candidates[0]
+  if (!candidate.content?.parts?.[0]?.text) {
+    console.error('[gemini] estructura inesperada en candidate:', candidate)
+    throw new Error(`Estructura inesperada: finishReason=${candidate.finishReason ?? 'unknown'}`)
+  }
+
+  const text = candidate.content.parts[0].text.trim()
+  console.log('[gemini] texto extraído:', text)
   return text
 }
 
@@ -46,7 +90,7 @@ async function estimateFood(description) {
     const prompt = `Sos un nutricionista. Analizá este alimento y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del alimento","kcal":número,"protein_g":número,"carbs_g":número,"fat_g":número}. Sé preciso con las cantidades. Alimento: ${description}`
     const text = await callGemini(prompt)
     const j = JSON.parse(text.replace(/```json|```/g, '').trim())
-    console.log('[estimateFood] resultado:', j)
+    console.log('[estimateFood] resultado parseado:', j)
     return {
       name:    String(j.name || description).slice(0, 80),
       kcal:    Math.round(Number(j.kcal)                   || 0),
@@ -55,7 +99,7 @@ async function estimateFood(description) {
       fat:     Math.round(Number(j.fat_g     ?? j.fat)     || 0),
     }
   } catch (e) {
-    console.error('[estimateFood] error:', e.message)
+    console.error('[estimateFood] FALLÓ:', e.message)
     return { name: description.slice(0, 60), kcal: 0, protein: 0, carbs: 0, fat: 0 }
   }
 }
@@ -65,14 +109,14 @@ async function estimateExercise(description) {
     const prompt = `Sos un nutricionista deportivo. Estimá las calorías quemadas para una persona de 70 kg y devolvé SOLO un JSON válido sin markdown ni texto extra: {"name":"nombre del ejercicio","duration_min":número entero,"kcal":número entero}. Actividad: ${description}`
     const text = await callGemini(prompt)
     const j = JSON.parse(text.replace(/```json|```/g, '').trim())
-    console.log('[estimateExercise] resultado:', j)
+    console.log('[estimateExercise] resultado parseado:', j)
     return {
       name:     String(j.name || description).slice(0, 80),
       duration: j.duration_min ? `${j.duration_min} min` : '30 min',
       kcal:     Math.round(Number(j.kcal) || 0),
     }
   } catch (e) {
-    console.error('[estimateExercise] error:', e.message)
+    console.error('[estimateExercise] FALLÓ:', e.message)
     return { name: description.slice(0, 60), duration: '30 min', kcal: 0 }
   }
 }
