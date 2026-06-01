@@ -5,7 +5,7 @@ import {
   fetchTodayMeals, insertMeal, deleteMeal,
   fetchTodayExercises, insertExercise, deleteExercise,
   fetchWeightHistory, upsertWeight,
-  fetchTodayWater, insertWater,
+  fetchTodayWater, saveWaterLog,
   fetchWeekCalories,
 } from '../lib/db'
 import HeroCard     from '../components/HeroCard'
@@ -122,7 +122,7 @@ export default function Dashboard({ theme }) {
 
   const handleAddWater = async (amt) => {
     setWaterLiters(l => Math.min(WATER_GOAL + 1, +(l + amt).toFixed(2)))  // optimistic
-    try { await insertWater(user.id, amt) }
+    try { await saveWaterLog(user.id, Math.min(WATER_GOAL + 2, +(waterLiters + amt).toFixed(2))) }
     catch (e) { console.error('insertWater:', e) }
   }
 
