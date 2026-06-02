@@ -5,7 +5,7 @@ import {
   fetchTodayMeals, insertMeal, deleteMeal,
   fetchTodayExercises, insertExercise, deleteExercise,
   fetchWeightHistory, upsertWeight,
-  fetchTodayWater, saveWaterLog,
+  
   fetchWeekCalories,
 } from '../lib/db'
 import HeroCard     from '../components/HeroCard'
@@ -13,7 +13,6 @@ import WeightCard   from '../components/WeightCard'
 import MacrosCard   from '../components/MacrosCard'
 import WeekCard     from '../components/WeekCard'
 import MealLogCard  from '../components/MealLogCard'
-import WaterCard    from '../components/WaterCard'
 import ExerciseCard from '../components/ExerciseCard'
 import PhotoCard    from '../components/PhotoCard'
 import FloatingAdd  from '../components/FloatingAdd'
@@ -39,7 +38,6 @@ export default function Dashboard({ theme }) {
   const [meals,         setMeals]         = useState([])
   const [exercises,     setExercises]     = useState([])
   const [weightHistory, setWeightHistory] = useState([])
-  const [waterLiters,   setWaterLiters]   = useState(0)
   const [weekCals,      setWeekCals]      = useState(Array(7).fill(0))
   const [dataLoading,   setDataLoading]   = useState(true)
   const [drawer,        setDrawer]        = useState({ open: false, tab: 'food' })
@@ -52,15 +50,13 @@ export default function Dashboard({ theme }) {
       fetchTodayMeals(user.id),
       fetchTodayExercises(user.id),
       fetchWeightHistory(user.id),
-      fetchTodayWater(user.id),
-      fetchWeekCalories(user.id),
+        fetchWeekCalories(user.id),
     ])
       .then(([m, e, w, water, wk]) => {
         setMeals(m)
         setExercises(e)
         setWeightHistory(w)
-        setWaterLiters(water)
-        setWeekCals(wk)
+          setWeekCals(wk)
       })
       .catch(err => console.error('Error cargando datos:', err))
       .finally(() => setDataLoading(false))
@@ -118,12 +114,6 @@ export default function Dashboard({ theme }) {
     setExercises(es => es.filter(e => e.id !== id))    // optimistic
     try { await deleteExercise(id) }
     catch (e) { console.error('deleteExercise:', e) }
-  }
-
-  const handleAddWater = async (amt) => {
-    setWaterLiters(l => Math.min(WATER_GOAL + 1, +(l + amt).toFixed(2)))  // optimistic
-    try { await saveWaterLog(user.id, Math.min(WATER_GOAL + 2, +(waterLiters + amt).toFixed(2))) }
-    catch (e) { console.error('insertWater:', e) }
   }
 
   const handleLogWeight = async (kg) => {
@@ -276,13 +266,6 @@ export default function Dashboard({ theme }) {
           </div>
 
           {/* Fila 3: Agua · Comidas */}
-          <div className="grid-item grid-item--water" style={{ gridColumn: 'span 4', minHeight: 320 }}>
-            <WaterCard
-              palette={theme.tiles.water}
-              liters={waterLiters} goal={WATER_GOAL}
-              onAdd={handleAddWater}
-            />
-          </div>
           <div className="grid-item grid-item--log" style={{ gridColumn: 'span 8' }}>
             <MealLogCard
               palette={theme.tiles.log} items={meals}
