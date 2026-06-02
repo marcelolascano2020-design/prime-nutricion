@@ -6,7 +6,6 @@ import Sidebar        from './components/Sidebar'
 import Dashboard      from './pages/Dashboard'
 import Comidas        from './pages/Comidas'
 import Peso           from './pages/Peso'
-import Ejercicio      from './pages/Ejercicio'
 import Progreso       from './pages/Progreso'
 import Perfil         from './pages/Perfil'
 import Onboarding     from './pages/Onboarding'
@@ -211,10 +210,7 @@ function AppInner() {
         <Route path="/agua" element={
           <RequireAuth><RequireProfile>
           </RequireProfile></RequireAuth>
-        } />
-        <Route path="/ejercicio" element={
-          <RequireAuth><RequireProfile>
-            <AppShell><Ejercicio theme={theme} /></AppShell>
+        } /></AppShell>
           </RequireProfile></RequireAuth>
         } />
         <Route path="/progreso" element={

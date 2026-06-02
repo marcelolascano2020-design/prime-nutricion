@@ -7,7 +7,6 @@ const NAV_ITEMS = [
   { to: '/dashboard', icon: '🏠', label: 'Inicio'    },
   { to: '/comidas',   icon: '🍽️', label: 'Comidas'  },
   { to: '/peso',      icon: '⚖️', label: 'Peso'     },
-  { to: '/ejercicio', icon: '🏃', label: 'Ejercicio' },
   { to: '/progreso',  icon: '📸', label: 'Progreso'  },
   { to: '/historial', icon: '📅', label: 'Historial' },
   { to: '/perfil',    icon: '⚙️', label: 'Perfil'   },
