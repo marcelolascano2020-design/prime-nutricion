@@ -207,12 +207,7 @@ function AppInner() {
             <AppShell><Peso theme={theme} /></AppShell>
           </RequireProfile></RequireAuth>
         } />
-        <Route path="/agua" element={
-          <RequireAuth><RequireProfile>
-          </RequireProfile></RequireAuth>
-        } /></AppShell>
-          </RequireProfile></RequireAuth>
-        } />
+
         <Route path="/progreso" element={
           <RequireAuth><RequireProfile>
             <AppShell><Progreso theme={theme} /></AppShell>
