@@ -358,6 +358,29 @@ export async function deleteExercise(id) {
   if (error) throw error
 }
 
+/** Todos los ejercicios de un mes (year/month en tiempo local). */
+export async function fetchMonthExercises(userId, year, month) {
+  const start = new Date(year, month, 1, 0, 0, 0, 0)
+  const end   = new Date(year, month + 1, 1, 0, 0, 0, 0)
+  const { data, error } = await supabase
+    .from('exercise_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('logged_at', start.toISOString())
+    .lt('logged_at', end.toISOString())
+    .order('logged_at', { ascending: true })
+  if (error) throw error
+  return (data || []).map(r => {
+    const d = new Date(r.logged_at)
+    const date = [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+    ].join('-')
+    return { ...rowToExercise(r), date, _type: 'exercise' }
+  })
+}
+
 function rowToExercise(r) {
   return {
     id:       r.id,
