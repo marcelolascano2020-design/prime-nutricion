@@ -209,7 +209,6 @@ function AppInner() {
         } />
         <Route path="/agua" element={
           <RequireAuth><RequireProfile>
-            <AppShell><Agua theme={theme} /></AppShell>
           </RequireProfile></RequireAuth>
         } />
         <Route path="/ejercicio" element={
