@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { fetchMonthMeals } from '../lib/db'
+import { fetchMonthMeals, fetchMonthExercises } from '../lib/db'
 import { FAMILY } from '../theme'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -35,13 +35,12 @@ function dateToStr(d) {
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
 
-function Calendar({ year, month, mealsByDate, selectedDate, onSelect, theme }) {
-  const tile   = theme.tiles.week
-  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7 // Mon = 0
+function Calendar({ year, month, itemsByDate, selectedDate, onSelect, theme }) {
+  const tile      = theme.tiles.week
+  const firstDow  = (new Date(year, month, 1).getDay() + 6) % 7
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const today = dateToStr(new Date())
+  const today     = dateToStr(new Date())
 
-  // Build cell list: leading nulls + day objects
   const cells = []
   for (let i = 0; i < firstDow; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) {
@@ -53,7 +52,6 @@ function Calendar({ year, month, mealsByDate, selectedDate, onSelect, theme }) {
 
   return (
     <div>
-      {/* Week-day headers */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
         gap: 2, marginBottom: 6,
@@ -69,12 +67,11 @@ function Calendar({ year, month, mealsByDate, selectedDate, onSelect, theme }) {
         ))}
       </div>
 
-      {/* Day cells */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
         {cells.map((cell, i) => {
           if (!cell) return <div key={`e${i}`} />
 
-          const hasMeals  = !!(mealsByDate[cell.dateStr]?.length)
+          const hasItems   = !!(itemsByDate[cell.dateStr]?.length)
           const isSelected = selectedDate === cell.dateStr
           const isToday    = today === cell.dateStr
           const isFuture   = cell.dateStr > today
@@ -106,10 +103,9 @@ function Calendar({ year, month, mealsByDate, selectedDate, onSelect, theme }) {
               }}>
                 {cell.day}
               </span>
-              {/* Dot: visible only when there are meals */}
               <span style={{
                 width: 4, height: 4, borderRadius: 999,
-                background: hasMeals
+                background: hasItems
                   ? (isSelected ? theme.page : theme.accent)
                   : 'transparent',
                 flexShrink: 0,
@@ -122,7 +118,7 @@ function Calendar({ year, month, mealsByDate, selectedDate, onSelect, theme }) {
   )
 }
 
-// ── Single meal row in day view ────────────────────────────────────────────────
+// ── Meal row ──────────────────────────────────────────────────────────────────
 
 function MealRow({ meal, theme }) {
   const ink = theme.tiles.log.ink
@@ -131,7 +127,6 @@ function MealRow({ meal, theme }) {
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '10px 0', borderBottom: `1px solid ${ink}12`,
     }}>
-      {/* Thumbnail */}
       <div style={{
         width: 42, height: 42, borderRadius: 10,
         flexShrink: 0, overflow: 'hidden',
@@ -143,8 +138,6 @@ function MealRow({ meal, theme }) {
       }}>
         {!meal.photo && '🍽️'}
       </div>
-
-      {/* Name + hour */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 14, fontWeight: 500, color: ink,
@@ -154,8 +147,6 @@ function MealRow({ meal, theme }) {
         </div>
         <div style={{ fontSize: 11, opacity: 0.4, marginTop: 2 }}>{meal.time}</div>
       </div>
-
-      {/* Kcal */}
       <div style={{
         fontSize: 15, fontWeight: 700, color: theme.accent,
         flexShrink: 0, fontVariantNumeric: 'tabular-nums',
@@ -167,23 +158,66 @@ function MealRow({ meal, theme }) {
   )
 }
 
-// ── Day view (meals grouped by moment) ────────────────────────────────────────
+// ── Exercise row ──────────────────────────────────────────────────────────────
 
-function DayView({ dateStr, meals, theme }) {
+function ExerciseRow({ exercise, theme }) {
+  const ink = theme.tiles.log.ink
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12,
+      padding: '10px 0', borderBottom: `1px solid ${ink}12`,
+    }}>
+      <div style={{
+        width: 42, height: 42, borderRadius: 10,
+        flexShrink: 0,
+        background: `${theme.accent}18`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 20,
+      }}>
+        🏃
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 14, fontWeight: 500, color: ink,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {exercise.name}
+        </div>
+        <div style={{ fontSize: 11, opacity: 0.4, marginTop: 2 }}>
+          {exercise.time} · {exercise.duration}
+        </div>
+      </div>
+      <div style={{
+        fontSize: 15, fontWeight: 700, color: theme.accent,
+        flexShrink: 0, fontVariantNumeric: 'tabular-nums',
+      }}>
+        −{exercise.kcal}
+        <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.55, marginLeft: 3 }}>kcal</span>
+      </div>
+    </div>
+  )
+}
+
+// ── Day view ──────────────────────────────────────────────────────────────────
+
+function DayView({ dateStr, items, theme }) {
   const tile = theme.tiles.log
 
-  // Human-readable date label
   const [y, m, d] = dateStr.split('-').map(Number)
   const dt = new Date(y, m - 1, d)
-  const wkNames  = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
-  const mnNames  = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+  const wkNames = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+  const mnNames = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
   const dateLabel = `${wkNames[dt.getDay()]}, ${d} de ${mnNames[m - 1]}`
 
-  const totalKcal = (meals || []).reduce((sum, meal) => sum + meal.kcal, 0)
+  const meals     = (items || []).filter(i => i._type !== 'exercise')
+  const exercises = (items || []).filter(i => i._type === 'exercise')
 
-  // Group by momento preserving MOMENT_ORDER
+  const totalKcalIn  = meals.reduce((s, m) => s + m.kcal, 0)
+  const totalKcalOut = exercises.reduce((s, e) => s + e.kcal, 0)
+
+  // Agrupar comidas por momento
   const groups = {}
-  for (const meal of (meals || [])) {
+  for (const meal of meals) {
     const k = meal.tag || 'snack'
     if (!groups[k]) groups[k] = []
     groups[k].push(meal)
@@ -208,23 +242,36 @@ function DayView({ dateStr, meals, theme }) {
         }}>
           {dateLabel}
         </div>
-
-        {totalKcal > 0 && (
-          <div style={{
-            fontFamily: FAMILY.display, fontSize: 26, fontWeight: 400,
-            color: theme.accent, letterSpacing: '-0.01em',
-          }}>
-            {totalKcal}
-            <span style={{
-              fontSize: 12, opacity: 0.6,
-              letterSpacing: '0.12em', textTransform: 'uppercase', marginLeft: 4,
-            }}>kcal</span>
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 14, alignItems: 'baseline' }}>
+          {totalKcalIn > 0 && (
+            <div style={{
+              fontFamily: FAMILY.display, fontSize: 26, fontWeight: 400,
+              color: theme.accent, letterSpacing: '-0.01em',
+            }}>
+              {totalKcalIn}
+              <span style={{
+                fontSize: 12, opacity: 0.6,
+                letterSpacing: '0.12em', textTransform: 'uppercase', marginLeft: 4,
+              }}>kcal</span>
+            </div>
+          )}
+          {totalKcalOut > 0 && (
+            <div style={{
+              fontFamily: FAMILY.display, fontSize: 18, fontWeight: 400,
+              color: tile.ink, opacity: 0.5, letterSpacing: '-0.01em',
+            }}>
+              −{totalKcalOut}
+              <span style={{
+                fontSize: 10, opacity: 0.6,
+                letterSpacing: '0.12em', textTransform: 'uppercase', marginLeft: 3,
+              }}>quem.</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Content */}
-      {sortedKeys.length === 0 ? (
+      {/* Sin registros */}
+      {sortedKeys.length === 0 && exercises.length === 0 ? (
         <div style={{
           textAlign: 'center', padding: '28px 0',
           fontSize: 14, opacity: 0.3, color: tile.ink,
@@ -232,22 +279,41 @@ function DayView({ dateStr, meals, theme }) {
           Sin registros
         </div>
       ) : (
-        sortedKeys.map(key => (
-          <div key={key} style={{ marginBottom: 16 }}>
-            {/* Moment label */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase',
-              fontWeight: 700, opacity: 0.5, color: tile.ink, marginBottom: 2,
-            }}>
-              <span style={{ fontSize: 14 }}>{MOMENT_META[key]?.icon}</span>
-              <span>{MOMENT_META[key]?.label ?? key}</span>
+        <>
+          {/* Comidas agrupadas por momento */}
+          {sortedKeys.map(key => (
+            <div key={key} style={{ marginBottom: 16 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase',
+                fontWeight: 700, opacity: 0.5, color: tile.ink, marginBottom: 2,
+              }}>
+                <span style={{ fontSize: 14 }}>{MOMENT_META[key]?.icon}</span>
+                <span>{MOMENT_META[key]?.label ?? key}</span>
+              </div>
+              {groups[key].map(meal => (
+                <MealRow key={meal.id} meal={meal} theme={theme} />
+              ))}
             </div>
-            {groups[key].map(meal => (
-              <MealRow key={meal.id} meal={meal} theme={theme} />
-            ))}
-          </div>
-        ))
+          ))}
+
+          {/* Ejercicios */}
+          {exercises.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase',
+                fontWeight: 700, opacity: 0.5, color: tile.ink, marginBottom: 2,
+              }}>
+                <span style={{ fontSize: 14 }}>🏃</span>
+                <span>Movimiento</span>
+              </div>
+              {exercises.map(ex => (
+                <ExerciseRow key={ex.id} exercise={ex} theme={theme} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -264,26 +330,35 @@ export default function Historial({ theme }) {
     month: now.getMonth(),
   })
   const [selectedDate, setSelectedDate] = useState(dateToStr(now))
-  const [monthMeals, setMonthMeals]     = useState([])
-  const [loading, setLoading]           = useState(false)
+  const [monthMeals, setMonthMeals]         = useState([])
+  const [monthExercises, setMonthExercises] = useState([])
+  const [loading, setLoading]               = useState(false)
 
-  // Group meals by local date string
-  const mealsByDate = useMemo(() => {
+  // Mezclar comidas + ejercicios por fecha
+  const itemsByDate = useMemo(() => {
     const map = {}
     for (const m of monthMeals) {
       if (!map[m.date]) map[m.date] = []
       map[m.date].push(m)
     }
+    for (const e of monthExercises) {
+      if (!map[e.date]) map[e.date] = []
+      map[e.date].push(e)
+    }
     return map
-  }, [monthMeals])
+  }, [monthMeals, monthExercises])
 
-  // Reload whenever the displayed month changes
   useEffect(() => {
     if (!user) return
     setLoading(true)
-    fetchMonthMeals(user.id, cursor.year, cursor.month)
-      .then(meals => { setMonthMeals(meals); setLoading(false) })
-      .catch(e => { console.error('[Historial]', e); setLoading(false) })
+    Promise.all([
+      fetchMonthMeals(user.id, cursor.year, cursor.month),
+      fetchMonthExercises(user.id, cursor.year, cursor.month),
+    ]).then(([meals, exercises]) => {
+      setMonthMeals(meals)
+      setMonthExercises(exercises)
+      setLoading(false)
+    }).catch(e => { console.error('[Historial]', e); setLoading(false) })
   }, [user, cursor.year, cursor.month])
 
   function prevMonth() {
@@ -315,7 +390,6 @@ export default function Historial({ theme }) {
   return (
     <div style={{ padding: '32px 24px 80px', maxWidth: 600, margin: '0 auto' }}>
 
-      {/* Page label */}
       <div style={{
         fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase',
         fontWeight: 700, opacity: 0.45, marginBottom: 20,
@@ -323,13 +397,12 @@ export default function Historial({ theme }) {
         Historial
       </div>
 
-      {/* ── Calendar card ──────────────────────────────────────────── */}
+      {/* Calendar card */}
       <div style={{
         background: calTile.bg, borderRadius: 24,
         padding: 20, marginBottom: 16,
         border: `1px solid ${calTile.ink}08`,
       }}>
-        {/* Month navigation */}
         <div style={{
           display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', marginBottom: 20,
@@ -376,7 +449,7 @@ export default function Historial({ theme }) {
           <Calendar
             year={cursor.year}
             month={cursor.month}
-            mealsByDate={mealsByDate}
+            itemsByDate={itemsByDate}
             selectedDate={selectedDate}
             onSelect={setSelectedDate}
             theme={theme}
@@ -384,11 +457,11 @@ export default function Historial({ theme }) {
         )}
       </div>
 
-      {/* ── Day view ────────────────────────────────────────────────── */}
+      {/* Day view */}
       {selectedDate ? (
         <DayView
           dateStr={selectedDate}
-          meals={mealsByDate[selectedDate] || []}
+          items={itemsByDate[selectedDate] || []}
           theme={theme}
         />
       ) : (
