@@ -52,7 +52,7 @@ export default function Dashboard({ theme }) {
       fetchWeightHistory(user.id),
         fetchWeekCalories(user.id),
     ])
-      .then(([m, e, w, water, wk]) => {
+      .then(([m, e, w, wk]) => {
         setMeals(m)
         setExercises(e)
         setWeightHistory(w)
