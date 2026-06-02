@@ -85,7 +85,7 @@ function RedirectIfAuthed({ children }) {
 
 function AppInner() {
   const { profile, updateSettings } = useAuth()
-  const [themeKey, setThemeKey] = useState('obsidian')
+  const [themeKey, setThemeKey] = useState(localStorage.getItem('prime_paleta') || 'obsidian')
   const theme = THEMES[themeKey] ?? THEMES.obsidian
 
   // ── Inicializar paleta desde el perfil guardado ──────────────
@@ -104,6 +104,7 @@ function AppInner() {
   function handleThemeChange(key) {
     if (!THEMES[key] || key === themeKey) return
     setThemeKey(key)
+    localStorage.setItem('prime_paleta', key)
     // Guardado silencioso; si falla sólo aparece en consola
     if (updateSettings) {
       updateSettings({ paleta: key }).catch(e =>
